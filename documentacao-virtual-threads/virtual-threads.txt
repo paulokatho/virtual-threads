@@ -1,0 +1,755 @@
+
+
+- O QUE SÃO VIRTUAL THREADS E PORQUE VOCÊ DEVERIA SE IMPORTAR COM ISSO
+====================================================================================
+
+	- link dos projetos no git
+		- 
+
+
+- AULA DE HOJE
+====================================================================================
+
+- Porque todo dev Java deveria se importar com isso
+
+
+
+- UM POUCO DE CONTEXTO
+====================================================================================
+
+	- Esse assunto causou bastante confusão na epoca do lançamento e deixou bastante gente um pouco sem entender o que é, pra que serve e talvez usabilidade das Virtual Threads
+
+	- Existem 2 principais arquitetos da plataforma Java dentro da Oracle
+	- Eles são o Braian Goetz e Mark
+
+		- Talvez ele seja o arquiteto chefe do Java
+
+	
+		- "... TO USE VIRTUAL THREADS EFFECTIVELY, THERE IS MORE UNLEARNING THAN LEARNING TO BE DONE."
+
+			- "... para usar as virtual threads efetivamente, existe mais a ser desaprendido que coisas a aprender."
+
+
+	- A grande ideia que tem por tras dessa ideia acima é que provavelmente algo que você já está fazendo, você vai ter que mudar ou vai ter que parar de fazer
+	- Isso porque tem alguém fazendo isso pra você ou alguma coisa está fazendo isso diferente de você
+
+	- Impacto na sua vida
+
+		- O impacto disso nos seus códigos, nos seus projetos potencialmente vai ser muito grande, desde que você saiba usar isso da forma correta, ou desde que você não atrapalhe (faz jus aquela frase: "muito ajuda quem não atrapalha")
+			as virtual threads, elas vão entregar resultados fantásticos pra você em seus projetos futuros
+
+	- Para contextualizar
+
+		- Como tudo no java, ele veio em uma JEP
+			- JEP 425 (Preview no JDK 19): https://openjdk.org/jeps/425
+
+			- Toda melhoria dentro da JDK passa por uma JEP
+			- Foram 5 anos de desenvolvimento
+
+		- Proposta do Loom
+			- Proposta feita por Ron Presler
+				- Project Loom: https://cr.openjdk.java.net/~rpressler/loom/Loom-Proposal.html
+				
+				- Projeto Loom de Java, threads virtuais e simultaneidade estruturada com Ron Pressler			
+					- https://www.infoq.com/podcasts/java-project-loom/
+						- Quais são as diferenças entre simultaneidade e paralelismo?
+
+							- Charles Humble : 
+								O Projeto Loom se preocupa principalmente com a simultaneidade na JVM. 
+								E acho que alguns de nossos ouvintes podem ficar confusos com as diferenças entre simultaneidade e paralelismo. 
+								Você pode nos ajudar? Você pode nos dar uma espécie de definição dos dois e quais são as diferenças?
+
+							Ron Pressler : 
+								A maneira como eu defino e, na verdade, é também a maneira que o ACM recomenda que as pessoas ensinem, é que a simultaneidade é o problema de agendar múltiplas tarefas amplamente 
+									independentes em um conjunto geralmente menor de recursos computacionais. Portanto, temos um grande conjunto de tarefas que podem interagir umas com as outras, 
+									mas que por outro lado são em grande parte independentes e estão todas competindo por recursos. O exemplo canônico é, obviamente, um servidor. 
+									O paralelismo, por outro lado, é um problema algorítmico completamente diferente. Paralelismo é quando temos uma tarefa a fazer, digamos, inverter uma matriz, 
+										e queremos apenas fazer isso mais rápido. E a forma como queremos fazer isso mais rápido é empregando múltiplas unidades de processamento. 
+										Então, dividimos o trabalho em múltiplas tarefas cooperativas e todas elas trabalham juntas para realizar essa tarefa. 
+
+										Portanto, 
+											o paralelismo trata da cooperação em uma única coisa, e a simultaneidade trata de coisas diferentes competindo por recursos. 
+											
+								Portanto, em Java, o paralelismo talvez seja melhor atendido por fluxos paralelos. E, claro, o projeto Loom tenta resolver o problema da simultaneidade.
+
+		- Elas visam que desenvolvedores Java:
+			- Escrevam aplicações que façam o melhor uso do hardware disponível
+
+				- Imagina o hardware da maquina, então, a partir da utilização de Virtual Threads, como posso utilziar todos esse potencial do hardware da melhor maneira
+				- Isso significa também utilizar o máximo do hardware disponível que está sem utilização naquele momento.
+					- Essa falta de maximização da utilização é um dos grandes problemas que temos com virtualização de threads até o momento (antes dessa data e provavelmente depois dessa data também 21/12/2023) no Java
+					- No modelo tradicional até aqui as Threads deixam hardware ali sobrando que não está sendo utilizado
+
+					- Atraves de um código que seja simples de ler e de manter
+						- Ou seja, usar o máximo do hardware disponível com código que seja simples de ler e de manter
+
+					- Que seja compatível com APIs e ferramentas já existentes
+
+		- Ela ainda é Preview (em 2022 quando essa aula foi gravada pelo Elder)
+			- A API ainda pode mudar
+
+			- Novas features apresentam mais reiscos de bugs do que aquelas que já estavam presentes
+				- A API das Virtual Threads, elas estão contindas dentro do mesmo pacote do Java Lang Thread
+				- Então vem dentro da API, só que agora tem algumas features novas
+
+
+
+- ENTENDENDO AS VIRTUAL THREADS
+====================================================================================
+
+	- Para a gente olhar para esse mundo de Virtual Threads e entender o que está sendo alterado nas Virtual Threads, precisamos olhar para 4 conceitos
+
+
+	================================================
+	- CONCEITOS	
+
+		- SÍNCRONOS
+		- ASSÍNCRONOS
+		- CONCORRÊNCIA
+		- PARALELISMO
+
+	- Execução Síncrona
+	--------------------
+		- A programação é mais simplificada
+			- Quando pensamos em uma programação assíncrona, primeiro, essa programação voltada para uma execução assíncrona ela é uma programação mais simplificada, porque tem uma sequencia de coisas que estão sendo executadas ali exatamente
+				naquela ordem, por definição ela já é mais simples
+		- Interface mais intuitiva com a plataforma
+			- A interface do código síncrono, com a plataforma que é o sistema operacional, jvm e etc, é uma interface mais intuitiva, você consegue ver no código como a coisa está sendo feita
+			- Porém, como ela é síncrona, ou seja, quando falamos em sincronissidade, pressupomos que é uma coisas que tem um passo após o outro e apenas quando essa coisa termina que a outra acontece, você potenciais problemas de esecalabilidade, pois 
+				você pode ter um monte de recursos aguardando intrução, aguardando uma que esteja com uma parte do código que esteja bloqueando e por isso você pode ter maiores riscos de escalalidade
+
+		- Nesse tipo de programação o dev está feliz
+			- Por causa da programçaõ mais simplificada
+			- Ela é mais intuitiva, é como um arroz e feijão ali
+
+		- Mas aqui o hardware está triste
+			- Porque você tem um problema potencial de escalabilidade pelo fato de uma instrução aguardar a outra, mas pela sub-utilização de utilização de hardware
+
+			- Exemplo, você tem um hardware que ocupa 100 de espaço de qq coisa, mas usa 70, 80 e até porque a gente não consegue alocar mais que isso em alguns casos
+
+		- Essas são as características do modo assíncrono
+
+
+	- Execução Assíncrona
+	----------------------
+		- Código mais difícil de manter e de ler
+
+		- Mesmo que tenham pessoas que digam que estão acostumados e que já programam de forma assíncrona, tem que se concordar que é mais difícil de ler e de manter
+			- O código é menos intuitivo para entender o que está acontecendo e o fluxo é diferente de execução
+
+		- Boa sorte com debug
+			- Muitos não conseguem, os que conseguem já viram que é um inferno na terra
+
+			- Debug
+				- Isso acontece, pois basicamente as ferramentas de debug do java, executam em cima da Thread que está sendo executada
+				- Então se você mudou a forma de execução da Thread e o debug corre numa Thread que nem está no pool muitas vezes, então você já não consegue usar aquela ferramenta
+				- Realmente é complicado
+
+		- Tende a escalar melhor
+			- Porém com tudo isso elas tendem a escalhar melhor
+			- A medida que você não tem mais aquela dependência de uma coisa após a outra, exatamente naquela ordem que elas foram chamadas. Você abre para uma gestão mais flexível da execução desses programas
+
+		- Devs tristes
+			- Dessa forma os devs estão tristes
+
+			- Isso porque o código é mais difícil de ler, de manter e também de debugar, inclusive que eles não conseguem acessar outras ferramentas que eles estavam acostumados
+
+		- Hardware feliz
+			- Porque o hardware está feliz?
+
+			- Porque ele consegue ser mais utilizado, então ele está feliz porque eles está trabalhando a todo vapor
+
+			
+	- Concorrência
+	----------------------
+		- Múltiplas tarefas independentes que competem pelos mesmos recursos disponíveis
+
+		- Imagine que você tem vários serviços que precisam acessar um serviço externo X remoto, supondo aqui que ele só aceita uma conexão por vez, por qualquer motivo maluco que seja, então são 10 serviços tentando acessar um outro serviço que só 
+			aceita 1 por vez. Eles estão concorrendo entre si porque o serviço externo é único
+
+		- Medida de performance: throughput (tarefa/unidade de tempo)
+			- Nesse caso de concorrência a medida de performance é o tal do throughput que a tarefa por unidade de tempo, basicamente é... quantas tarefas faço por segundo, por minuto, por hora ou qualquer coisa assim
+			- Exemplo academia: Quantos agachamentos eu faço por minuto 
+
+			- Quantas Threads eu consigo executar por segundo, por minuto ou por milésimo por segundo (a unidade de tempo depende do serviço que está sendo feito)
+
+
+	- Paralelismo
+	----------------------
+		- Dividir uma tarefa em tarefas menores que utilizam múltiplos recursos disponíveis
+
+		- Então agora não são mais várias tarefas, agora é só uma tarefa que possui várias subtarefas e essas subtarefas você consegue distribuir entre vários recursos disponíveis
+
+		- Exemplo:
+			- Na Jboss tinha um serviço que fazia todo o trabalho de billing, de toda a cobrança de provavelmente milhões de clientes
+			- E então vinham os arquivos e os arquivos eram muito grandes e se fosse processar todos aqueles arquivos de uma única vez ia demorar muito e tinha vários outros problemas
+			- Então eles tiveram a ideia de que quando vinha esse arquivo grande.... eles começavam a fatiar em vários arquivos menores e eles tinham pools de EJBs. Eles jogavam para esses EJBs e eles processavam esses arquivos
+
+		- Medida de performance no paralelismo: latência (tempo)
+			- Que é basicamente quanto tempo eu demoro pra executar essa tarefa
+			- Então é o processo que pegar a tarefa, quebrar ela tem tarefas menores, então em quanto tempo eu demoro pra executar ela quebrando em tarefas menores
+
+
+
+
+	- Porque todos esses conceitos?
+	----------------------------------------
+		- Porque quando a gente fala de concorrência e aí o que vai explicar pra gente como é que funciona a comparação de execução de uma Thread num modelo tradicional e num modelo Virtual é dado por uma formula matemática chamada
+
+			- LITTLES'S LAW
+
+			- "... (the) average number 'L' of customers in a stationary system is equal to the ... average effective arrival rate 'λ'' (símbolo é a letra 'Y' ao contrário)
+				multiplied by the average time 'W' that a customer spends int the system"
+
+
+			- Lendo essa definição
+
+				- "... a média do número L de clientes em um estado estável do sistema que é igual... a média efetiva de chegada desses clientes multiplicada pela média de tempo W que cada cliente passa no sistema"
+
+			- Então Concorrência é o número de Threads multiplicada pelo tempo que cada Thread leva para ser executada
+
+			- link
+				- https://shekhargulati.com/2021/11/20/understanding-littles-law/
+
+
+	- Porque isso é importante?
+	----------------------------------------
+
+		- Porque se a gente olha o modelo tradicional de Threads já chegamos num conceito que é :
+
+			- Hoje o sistema operacional que está no nosso computador tem uma capacidade de execução de Threads, essas Threads no sistema operacional são chamados de Platform Thread o Thread de S.O. (sistemas operacionais)
+
+		- Nas Platform Threads o modelo de execução de Thread é chamado de Thread Pool Request, então cada requisição vai alocar uma Thread de S.O.
+			- Nesse modelo cada request consome uma Thread durante toda sua duração 
+
+
+		- Então Thread-per-request (modelo utilizado pelas Platform Thread)
+			- Cada request consome uma thread durante toda sua duração
+			- A Thread fica bloqueada durante todo o tempo de execução da request
+			- Quando maior o número que Threads possíveis de serem executadas, maior o throughput
+			- E isso está diretamente ligado ao hardware disponível
+				- Quanto maior, melhor o hardware de um sistema ou ambiente (tipo nosso computador), maior o número de Threads que ele consegue executar
+			- Então a concorrência máxima que conseguimos chegar no nosso computador são 100 (levando em consideração o exemplo anterior que nosso ambiente de exemplo teria um limite de 100 Threads)
+
+
+
+			- Imagine que nosso computador consegue executar 100 Threads (só uma suposição)
+			- Então executamos nosso projama java e quando ele executa, se a gente usar o debug, nós vamos alocar 1 dessas 100 Threads do nosso sistema operacional para alocar esse programa java que estamos debugando
+			- Essa Thread do nosso programa vai ficar bloqueada todo o período de execução da request
+
+			- Então imaginando outro exemplo, que tem uma chamada no banco de dados, então nossa aplicação java que estou executando na minha máquina, ao apertar o botão run, o sistema sobe o que ele precisa, acessa o banco de dados
+				e aí para
+
+				- Então durante esse tempo que ele levou para fazer isso, essa Thread de S.O. fica bloqueada e ninguém consegue mais alocar ela. Ela está fora do pool de Threads do meu sistema operacional
+
+
+
+- THREADS NO JAVA (PLATFORM THREADS)
+====================================================================================
+	- Como funciona essa execução de Threads no java frente ao modelo de Platform Thread?
+
+	- Ele está no pacote
+		- java.lang.Thread
+	- É um wrapper em cida das threads de SO
+		- Ou seja, quando fazemos um "Thread.qualquerCoisa()" dentro do osso programa java, não estamos simplismente acessando uma Thread que está dentro da nossa JVM, estamos usando a JVM para acessar uma Thread do nosso sistema operacional diretamente
+ 	- Threads de SO suportam todas as linguagens
+		- Agora o que acontece?
+		- Quando olhamos para as Threads do SO, vamos pensar o seguinte, que o computador ou laptop não foi feito só para rodar Java, ele foi feito para rodar qualquer linguagem que o nosso sistema operacional suporta que é provavelmente qualquer uma
+		- Então parte dos problemas que a gente tem com as Threads de SO vem desse requisito traz de conseguir suportar todas as linguagens
+	- Alto consumo de RAM
+		- Essas são Threads que tem um alto consumo de memória RAM
+		- Ou seja, se você quer aumentar o número de Threads que seu sistema operacional consiga executar, uma das vias mais obvias é você aumentar a quantidade de RAM e até por isso que é comum que aumente a memória RAM do seu computador e você perceba
+			que ele está mais rápido... isso é porque você aumentou a quantidade de Threads que ele consegue gerenciar
+	- Troca de tasks em execução é feita no nível do kernel
+		- Quando você faz a chamada de tasks, ou seja está executando uma Thread e digamos que ela finalizou e vamos para a proxima. vai executar outra, como você está acessando uma Thread do SO, essa troca entre é feita no nível do Kernel, não é no codigo
+			nem na JVM, é no Kernel. O que é um acesso de baixo nível para o que deveria ser mais abstraído.
+			Como está acessando um recurso do SO, está acessando no nível do Kernel
+	- Para aumentar o throughput, a tendencia é ter que investir em hardware (mesmo que parte desse hardware seja subutilizado)
+		- Pois pelo fato das Threads de SO terem que suportar diversas linguagens são impostas limitações para elas, para essa Thread de SO, e para quem quiser ir mais a fundo tem o livro clássico do Tanembaum (Sistemas Operacionais Modernos)
+		- Imagine que você colocou 32 gigas de memória RAM, seu pc ficou melhor, está tendo mais Threads para alocar, porém ainda está sobrando 5 GB de RAM.
+			- Isso acontece porque é uma característica das Threads de SO
+			- Ou seja, parte desse hardware que você aumentou fica subutilizado
+	- Platform Threads são recursos (como mémória, CPU, disco, ect)
+		- Quando falamos de Threads, estamos falando de um recurso, não estamos acostumados a falar muito desse recurso Threads, mas estamos mais acostumados a falar de memória, CPU, disco e etc, mas deveríamos também falar sobre o recurso Thread
+		- Como todo recurso ele é limitado, ele é excasso e nesse caso ele é bem caro
+		- Para você alocar uma Thread SO, um custo de memória e de execução e etc.... ela é bem cara
+
+
+
+	---------------------------------------------------------------------------------------
+	- PARA AJUDAR NESSA SITUAÇÃO DE HARDWARE SOBRANDO, FOI CRIADA A PROGRAMAÇÃO ASSÍNCRONA
+	---------------------------------------------------------------------------------------
+
+	- Progamação Assíncrona
+		- Opção para evitar o desperdício de hardware
+		- Quando há espera por algu IO, ao invés de bloquear a Thread, ela é "devolvida" ao poll e pode ser usada por outras requests
+		- O número de requests que podem ser atendidas é maior que o número de threads disponíveis
+		- O L(= concorrência) não limitado pelo número de threads
+		- Problemas
+			- Não é o estilo mais "intuitivo" do mundo
+			- Requer um set específico de APIs
+			- Grande impacto na observabilidade (troubleshooting, debug, profiling, etc)
+			- Porque?
+				- Porque todoa a plataforma java é organizada em threads>
+					- Exceptions: contexto é fornecido através de uma sequencia de chamadas de threads
+					- Degugger: passos a passo de execução de uma trehad
+					- Profiler (JFR): agrupa eventos em torno de threads
+					- Dentre outros exemplos
+			- Tudo isso é "perdido" quando utilizados uma abordagem assíncrona
+
+
+		- A programação assíncrona veio muito para ajudar a não desperdiçar o hardware
+		- Exemplo, tenho um hardware sobrando aqui, no caso memoria RAM, como faço para alocar esse hardware disponível ainda, sem que eu precise aumentar ainda mais meu hardware e continuar com hardware sobrando. Que isso não faz muito sentido, o 
+			ideal é utilizar o máxido do que já se tem
+		- Para ajudar a resolver isso, foi onde pensaram na programação assíncrona pra fazer isso. Porque o basicamente acontece na programção assíncrona é que quando existe alguma espera de IO, que basicamente quando sua Thread é interrompida é
+			porque ela está aguardando um "I" ou um "O" (um Input ou Output)
+			- Na Thread de SO quando ocorre esse bloqueio por espera de IO, você bloqueia a Thread, a Thread fica esperando, se você ficar 1 dia esperando esse IO, ele vai ficar 1 dia com essa Thread bloqueada
+
+			- Agora no modelo assíncrono não, quando tem algum bloqueio de IO, essa Thread volta para o pool e ela pode ser utilizada por outras requests, o que parece bem mais inteligente
+
+			- Então se a task está bloqueada esperando um IO, aí ela volta para o pool então outra request pega ela e vai executar sua Thread
+			- Geralmente você nunca fica com uma Thread bloqueada
+		- Ou seja, o número de Threads que você consegue atender, nesse modelo, ele é maior que o número de Threads disponiveis
+			- Então se eu consigo executar 100 Threads, eu posso colocar 200 requests lá, porque quando cada uma dessas requests tiver seu proprio "IO blocking" ela devolve a Thread para o pool e outra pode executar
+		- Nesse caso a L(= concorrência) não é limitado pelo número de threads, pois agora o limite não é mais a quantidade de threads do seu sistema operacional
+		- Problemas
+			- Como tudo na vida, sempre tem um problema
+			- Essa programação não é muito intuitiva, ela é diferente do que a gente esta acostumado
+			- Você precisa de set específico de APIs que você está acostumado. Se você quiser mudar para programação assíncrona, você não vai usar as mesmas APIs, você vai ter usar outras, acostumar com elas, ver como elas funcionam, vai ter
+				que aprender algo novo literalmente
+			- Pior problema
+				- O pior problema é que você tem um grande impacto na observabilidade como (trougleshooting, debug, profiling, etc), o impacto é gigantesco
+				- Porque esse problema?
+					- Porque a plataforma inteira do java de modo geral ela é toda contruída ao redor de Threadas, ou seja, quando você tem uma exception, o contexto que vem da sua exception é fornecido por uma sequencia de 
+						chamadas de Threads, quando você vê seu stack trace, você está vendo uma sequencia de chamadas de threads
+					- O seu debugger é um passo a passo da execução de threads que você está utilizando
+
+					- Ou seja, a plataforma java é um grande Wrapper em cima de threads e sistema operacional
+			- Tudo isso você meio que perde quando usa o assíncrono, e aí você acaba tendo que dar outros jeitos para lidar com isso, especialmente se estiver usando java... que é o nosso caso aqui
+
+
+
+
+	- Logo, a saída para um melhor throughput não seria a adoção de um estilo de programação diferente, mas sim tornar a trhread u recurso mais "barato"
+
+
+		- A saída ideal para você ter um throughput, não seria ter um novo estilo de programação, mas achar uma forma de tornar a Thread um recurso mais barato, mais facil de lidar, mais facil de alocar, que não precise toda hora ir 
+			no Kernel, que toda hora que precisar de mais thread não precise alocar mais memória.
+			- Não é só o caso de tornar um recurso mais barato, mas fazer com que a thread deixe de ser um recurso... e isso se consegue com a Virtual Thread
+
+
+- THREADS NO JAVA (VIRTUAL THREADS)
+====================================================================================
+
+	- java.lang.Thread
+	- Mesma API, mas não são um wrapper em cima das threads de SO
+	- 100% implementadas no runtime do próprio java
+	- O runtime do java implementa threads de modo mais eficiente que as threads de SO, porque ele sabe exatamente como uma palicação java funciona
+	- Em especial, as vbirtual threads podem trabalhar com resizable stacks (já que só precisam dar suporte ao java)
+	- "Debaixo dos panos", a jvm aloca pouquíssimas threads para alocar um número gingantesco de virutal threads
+	- Ou seja:
+		- Programação java tradicional
+		- Melhor utilização dos recursos disponíveis
+		- Dev feliz e hardware feliz
+
+
+
+		- Primeira coisa, você vai usar o mesmo package, java.lang.Thread
+		- Você usa a mesma API, mas não são um wrapper em cida da threads de SO
+		- Porque?
+			- Porque elas são 100% implementadas dentro do runtime do próprio java, elas rodam 100% dentro da sua JVM
+			- Quando você aloca uma virtual thread, você não está indo mais no SO, você está só dentro da sua JVM
+		- O que acontece?
+			- Por você estar dentro da JVM, até parece obvio o que vamos ver agora, mas a JVM, é o melhor ambiente que sabe executar um código java no planeta
+			- Não existe nenhum sistema operacional, nenhum ambiente de execução que execute um código java como uma JVM
+			- E é exatamente por ser óbvio que as virtual threads funcionam tão bem comparado a uma thread tradicional 
+			- E o que acontece é que por saber exatamente como um codigo java funciona a jvm consegue lidar com uma Thread de forma muito mais inteligente e uma forma muito mais adequada do que uma tread de SO
+			- Em especial, as virtual threads podem trabalhar com resizable stacks (já que só precisam dar suporte ao java)
+			- Aí debaixo dos panos, internamente a sua jvm está alocando um numero redusidíssimo de thread de SO para te deixar disponivel milhares ou centenas de milhares e possivelmente milhões de virtual threads
+				- Com algo que era inimaginavel fazer com o modelo de thread tradicional, nas virtual threads tradicional você consegue
+			- Ou seja:
+				- Você pode usar a programação java tradicional
+				- Você tem uma utilização muito melhor de recursos disponíveis e muitos artigos dizem que você consegue elevar a utilização do seu hardware potencialmente ao máximo, o que é ótimo
+		
+		- Aí você tem dev feliz e hardware feliz
+
+			- o dev fica feliz porque ele está utilizando um tipo de programãção mais tradicional, mais intuitivo, com uma interface simples com a plataforma 
+			- e o hardware está feliz porque ele está conseguindo utilizar tudo o que ele tem disponível
+
+
+UM POUCO DE CODIGO
+====================================================================================
+
+	/**
+	 * PARA DEMONSTRAR QUE A VIRTUAL THREAD É USADA A PARTIR O PACKAGE THREAD AINDA
+	 */
+	public class Demo {
+	    public static void main(String[] args) throws Exception {
+	        new Demo().run();
+	    }
+
+	    void run() throws Exception {
+	        var thread = Thread.startVirtualThread(
+	                (() -> System.out.println("HELLO, KATHO THREAD!"))
+	        );
+	        thread.join(); //Pode executar esse cara aqui   
+	    }
+	}
+	//VOCÊ NÃO VAI USAR UMA TRHEAD ASSIM, É SÓ PARA DEMONSTRAÇÃO
+
+
+
+	------------------------------------------------
+	- EXEMPLO DE CODIGO UM POUCO MAIS ELABORADO
+	------------------------------------------------
+
+	- Nesse exemplo basicamente o que importa é que temos um 
+
+		- Executors
+			- Que é uma API que vamos usar para mandar que a JVM execute uma Thread no modo virtual com o metodo
+				- newVirtualThreadPerTaskExecutor()
+
+	- A cada passada no loop do for, vai mandar uma nova Virtual Thread para a JVM
+	- Nesse exemplo está mandando 100.000 Virtual Threads e faz um negocio besta que é fazer um sleep de 2 segundos
+
+	- Ao executar o codigo da para perceber algo interessante
+		- A maquina ao executar o codigo, demora um pouco para comçar a ter algum resultado interessante, alguns segundos, mas depois que ele começa o tempo delas diminui
+		- Perceba que está marcando o tempo inicial e o tempo final com "long start" e "long end" 
+		- Geralmente ela vai demorar os 2 segundos para executar 100.000 Virtual Threads e esse tempo também é o que foi definido no Thread.sleep(2000); - mas na verdade são 2 coisas diferentes... é quase como se estivess executando em paralelo,
+			mas NÃO É EM PARALELO porque cada uma está executando individualmente, mas como o mecanismo de execução de gerenciamento é tão mais eficiente do que a Thread tradicional a impressão é que elas estão sendo executadas paralelamente (mas não está!)
+
+		- O interessante é esse metodo
+			- newVirtualThreadPerTaskExecutor()
+
+				- Então cada task nova deve ser enviada para o for individualmente para que ele aloque uma Virtual Thread para ela
+
+	- Dá uma olhada no código abaixo
+
+	import java.util.concurrent.Executors;
+
+		public class Demo {
+
+		    public static void main(String[] args) throws Exception {
+		        new Demo().runExecutor();
+		    }
+
+		    void runExecutor() throws Exception {
+
+		        for(;;) {
+		            long start = System.currentTimeMillis();
+		            try(var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+		                for (int i=0; i < 100_000; i++) {
+		                    executor.submit(() -> {
+		                        Thread.sleep(2000);
+		                        return null;
+		                    });
+		                }
+		            }
+		            long end = System.currentTimeMillis();
+		            
+		            System.out.println(end - start + " ms");
+		        }
+		    }
+		}
+
+
+
+
+COMO USAR UMA VIRTUAL THREADS
+====================================================================================
+
+	- Importante: virtual threads executam *qualquer* codigo java
+	- Mas para conseguir alcançar a escalabilidade que elas oferecem, você pode dar uma força (muito ajuda quem não atrapalha)...
+	- Se você sempre manipulou threads diretamente, certeza que há algumas "boas práticas" que precisam ser mudadas
+
+
+
+		- Você consegue executar qualquer codigo java. Não é nenhum codigo específico, nada super especial
+		- Só que para você alcançar o nível de escalabilidade que elas oferecem, você precisa ajudar (que é: quem muito ajuda é quem não atrapalha)
+			- Tem muito mais a ser desaprendido do que aprendido
+		- Se você é alguem acostumado a manipular threads diretamente provavelmente que vc aprendeu que eram boas praticas e que você vai ter que aprender de novo e de um outro jeito agora
+
+
+	------------------------------------------------
+	- BOAS PRÁTICAS
+	------------------------------------------------
+		- Use as boas e velhas blocking APIs
+		- Uso de thread pools = poucas threads / Uso de thread per task = um monte de threads
+		- Evite o Pinning
+
+			- Com Virtual Threads o barato bom é usar blocking APIs ou APIs bloqueantes
+			- Se você usar thread pools você tem poucas threads, mas se você usar thread per task você tem muitas threads
+			- Pinning vamos ver mais abaixo
+
+
+	------------------------------------------------
+	- EXPLICANDO AS BOAS PRÁTICAS
+	------------------------------------------------
+	
+	- PONTO 1
+		- Use as boas e velhas blocking APIs
+
+		- Então por exemplo, se você quer pegar uma imagem e está em um body hanler de algum site, se você for usar uma API assíncrona, vai usar o codigo abaixo, tem o código que não é performático e o código que é ótimo
+			para as virtual threads veja a diferença
+
+			- FORMA RUIM
+				//Esse código não usa as velhas e boas blocking APIs
+				//Não é a melhor forma ou a forma indicada para se utilizar virtual threads
+
+				public class BuscaImagens {
+
+				    public static void main(String[] args) {
+				        CompletableFuture.supplyAsync(info::getUrl, pool)
+				            .thenCompose(url -> getBodyAsync(url, HttpResponse.BodyHandlers.ofString()))
+				            .thenApply(info::findImage)
+				            .thenCompose(url -> getBodyAsync(url, HttpResponse.BodyHandlers.ofByteArray()))
+				            .thenApply(info::setImageData)
+				            .thenAccept(this::process)
+				            .excptionally(t -> { t.printStackTrance(); return null; });
+				    }
+				}
+
+			//Esse código USA as velhas e boas blocking APIs
+			//Dessa forma vai utilizar todo potencial das virtual threads
+
+			public class BuscaImagensVirtualThreads {
+			    public static void main(String[] args) {
+			        
+			        try {
+			            String page = getBody(info.getUrl(), HttpResponse.BodyHandlers.ofString());
+			        String imageUrl = info.findImage(page);
+
+			        byte[] data = getBody(imageUrl, HttpResponse.BodyHandlers.ofByteArray());
+			        info.setImageData(data);
+
+			        process(info);    
+			        } catch (Exception e) {
+			            t.printStackTrace();
+			        }
+			        
+			    }
+			}
+
+
+			- Esse é o código que vai executar bem na blocking api, e nesse codigo mais "simples", você consegue debugar, fazer profillings, consegue fazer um troubleshooting mais facil 
+			- Essa forma mais simples as coisas tendem a funcionar melhor
+
+
+	------------------------------------------------
+	- 
+	------------------------------------------------
+	 
+	 - PONTO 2
+	 	- Uso de thread pools = poucas threads / Uso de thread per task = thread 
+
+	 	- Se você tem um codigo que acessa diretamente uma thread de SO e você simplismente mudar esse codigo para o modelo de Virtual Threads, você vai ter zero ganho
+	 	- O que vai realmente melhorar a sua vida?
+	 		- Se você pegar essa task ou você pegar esse codigo, transformar numa task e aí sim você transformar essa task em uma Virtual Thread
+	 		
+	 		- Como assim?
+	 			- Uma task é uma unidade de trabalho
+	 			- Quando o computador tem que fazer alguma coisa, tem um contexto fechado do que tem que ser feito, isso é uma task e essa task vira uma Virtual Thread
+	 	- Não compartilhar uma Virtual Thread entre varias tasks
+	 		- Então pra exemplificar
+	 			- Se você tiver várias tasks (task, task, taks, task, task, task....) e plugar numa Virtual Threads só.... não vai funcionar
+	 			- Fazendo isso você não vai ter nenhum ganho... não faça isso
+
+	 	- VIRTUAL THREADS NÃO SÃO MAIS RECURSOS (como as Platform Threads de SO), SÃO OBJETOS DE LÓGICA DE NEGÓCIO
+
+	 		- Imagine que tenha um bloco de regras de negócios que precisa ser executada, uma unidade de trabalho... então se eu consigo tratar ela como uma task, então isso vai virar uma Virtual Thread
+
+	 	- A forma correta de utilizar é visto no bloquinho de codigo abaixo
+
+
+		 	{
+		 		TimerTask task1 = new MyTimerTask("task1");
+		 		TimerTask task2 = new MyTimerTask("task2");
+
+		 		try(var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+		 			executor.submit(task1);
+		 			executor.submit(task2);
+		 		}
+		 	}
+	 		
+	- ITENS FALADO NESSE BLOCO ACIMA
+		- Uso de thread pools = poucas threads / Uso de thread per task = um monte de threads
+
+		- Não transforme uma SO thread em uma Virtual Thread (isso gera zero ganho)
+		- Transforme uma task em uma Virtual Thread
+			- Task = unidade de serviço
+			- Podem ser instâncias de Runnable ou Callable, por exemplo
+		- Não comartilhe uma Virtual Thread entre varias tasks
+		- Vitual Threads não são recursos (como as Platform Threads), são objetos de lógica de negócio
+
+
+		- USANDO ESSAS BOAS PRÁTICAS NÓS NÃO VAMOS ESTAR "ATRAPALHANDO A VIDA" DA MINHA JVM NA HORA DE ALOCAR UMA VIRTUAL THREAD PRA MIM
+
+
+	------------------------------------------------
+	- 
+	------------------------------------------------
+	 
+	 - PONTO 3
+	 	- Evite o Pinning
+
+	 	- O que é o Pinning?
+
+	 		- No Pinning tem que acontecer essas 3 coisas abaixo: As 3 ao mesmo tempo e sem exceção
+	 		- Então Pinning é quando:
+
+	 			1- Um processo leva muito tempo para ser concluído (blocking I/O) e;
+	 			2- Roda em modo synchronized e;
+	 			3- É executado com muita frequência
+
+
+	 			Vamos lá....
+	 				- Então se ele leva muito tempo, ele é synchronized, mas ele não roda com frequência... ele não é Pinning
+	 				- Se ele roda sincronizado, com frequência, mas não tem muito tempo de blocking I/O... não é Pinning
+	 				- Se ele leva muito tempo, tem frequência, mas não é synchronized... não é Pinning
+
+	 					- Ele tem que ter os 3 pontos ao MESMO TEMPO!!!
+	 					- Se não... NÃO É PINNING
+
+	 		
+	 		- Agora o que acontece quando essas 3 coisas se combinam?
+
+	 			- Nesse caso você está bloqueando as Virtual Threads
+	 				- Ou seja, você conseguiu bloquear um negócio que foi feito para não bloquear
+	 			- E aí você impacta diretamente a escalabilidade que de forma inerente te fornece
+
+	 		------------------------------
+	 		- Para resolver um caso desse
+	 		------------------------------ 
+	 		- Você utiliza o código abaixo:
+
+	 			{
+	 				Lock lock = new ReentrantLock();
+	 				lock.lock();
+	 				try {
+	 					somethingLongSynchronizedAndFrequent();
+	 				} finally {
+	 					lock.unlock();
+	 				}
+	 			}
+
+
+	 			- Os caras quando descobriram esse problema, eles criaram esse codigo acima para resolver esse probleme de Pinning ou Lock
+	 			- Então se você tiver um código que tem que rodar numa Virtual Thread, mas tem os 3 itens do Pinning rodando ao mesmo tempo, ou seja, 
+	 				gerando um blocking, então você roda dentro desse código de lock no try {...} o seu código maluco e depois no finally você chama o ".unlock()"
+
+	 			- Então basicamente:
+	 				- Você consegue uma instância de Lock, inicia ela com ".lock()" e no bloco try {...} você chama o seu código que está em Pinning e depois finaliza com o ".unlock"
+
+	 				- Código acima chamando o seu código que tem o problema de Pinning
+
+	 					
+	 					{
+			 				Lock lock = new ReentrantLock();
+			 				lock.lock();
+			 				try {
+			 					seuCodigoMalucoComPinning();
+			 				} finally {
+			 					lock.unlock();
+			 				}
+			 			}
+
+
+			 			- Se você fizer isso dentro de um contexto de Virtual Thread a Virtual Thread consegue executar esse codigo todo sem se bloquear
+			 			- Dessa forma você não vai impactar o uso da Vitual Thread colocando o seu codigo dentro da instância de "Lock"
+
+
+
+		- Você não precisa sair mudando todos os blocos *synchronized* do seu projeto
+			- Porque não precisa sair mudando?
+
+				- Porque a maior parte dos blocos synchronized do seu projeto não vão combinar aqueles 3 fatores lembra?
+
+					1- Tem que ser longo
+					2- Tem que ser sincronizado
+					3- E tem que ser frequente
+
+				- Então se seu codigo não tem esse 3 fatores, não mexe pq não é Pinning e vai funcionar certinho
+
+		- Em versões futuras esse problema será resolvido internamente e esse problema de Pinning será resolvido internamente e o seu codigo vai poder funcionar sem precisar o "ReentrantLock" da instância de "Lock"
+
+
+	- Resumindo
+
+		- Evite o Pinning
+
+			- Importante: não precisa sair mudando todos os blocos *synchronized* do seu projeto
+			- Em versões futuras, esse cenário desse problema deve ser resolvido sem a necessidade do "ReentrantLock"
+
+
+
+
+- MAS SE EU QUISER LIMITAR A CONCORRÊNCIA A UM DETERMINADO RECURSO ACESSADO VIA VIRTUAL THREADS?
+=====================================================================================================
+
+
+	- Imagine que sua aplicação acessa um banco Postgres e você tem um pool de conexões que tem 100 conexões no seu pool e que é bastante coisa
+	- E quem já tentou alocar muitas conexões num pool de conexões sabe que não é uma das tarefas mais faceis do mundo
+	- E continue imaginando, você com as 100 conexões e acabou alocando 1 milhões de Virtual Threads
+		- Imagina 1 milhão de Virtual Threads tentando conectar no seu banco que tá lá na humildade com 100 conexões no pools
+
+			- Então você vai ter alguns problemas de diversos lados
+
+	- Para esse cenário, por exemplo, você vai querer limitar essa concorrência
+
+		- Então se você quer 100 milhões de Threads está ok, mas você não quer elas batendo no seu banco ao mesmo tempo né!
+		- Também não quero deixar de usar esses recurso por que tem seus ganhos e tudo mais
+
+	------------------------------
+	- SEMAPHORE
+	------------------------------
+	- Limite a concorrência usando um Semaphore
+
+
+		- Para esses casos temos o Semaphore para lidar com essa questão de limitação de concorrência
+		- Os deuses da JVM criaram ele - O Semaphore
+
+		- Codigo do Semaphore
+
+			{
+				Semaphore sem = new Semaphore( permits: 10); //Instânciar o Semaphore e definir a quantidade de conexões permitidas por vez
+				sem.acquire();
+				
+				try {
+					return seuCodigoMalucoQueVoceQuerLimitarOsMilhoesDeThreads(); //Seu código vai rodar nesse momento limitado a 10 conexões por vez
+				} finally {
+					sem.release(); //Depois que ele rodou, chama o "release()" e está feito a magia
+				}
+
+			}
+
+
+		- Dessa forma vai estar resolvido o seu problema de limitar a concorrência a um recurso
+
+
+
+
+- REFERÊNCIAS
+=====================================================================================================
+
+- JEP 425 (Preview no JDK 19): https://openjdk.org/jeps/425
+
+- Project Loom: https://cr.openjdk.java.net/~rpressler/loom/Loom-Proposal.html
+
+- Otima matéria sobre Virtual Threads
+	- Virtual Threads: New Foundations for High-Scale Java Applications (Brian Goetz, Daniel Briant): https://www.infoq.com/articles/java-virtual-threads/
+
+- Como o Quarkus está lidando com Virtual Threads
+	- Writing simpler reactive REST services with Quarkus Virtual Thread support: https://quarkus.io/guides/virtual-threads
+
+- The Age of Virtual Threads (Ron Pressler, Alan Bateman): https://youtu.be/YQ6EpIk7KgY
+
+- Livro denso e pesado sobre Sistemas Operacionais
+	- Sistemas Operacionais Modernos 
+		por Andrew S. Tanenbaum (Autor), Herbert Bos (Autor), Daniel Vieira (Tradutor), Raphael Yokoingawa de Camargo
+
+	- Esse livro está na edição 5
+
+
+
+
+
